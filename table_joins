@@ -1,0 +1,70 @@
+-- Here I showcase how I joined two tables to obtain data
+
+-- Main query to calculate the average amount paid by these top 5 customers
+SELECT AVG(total_amount_paid) AS average
+FROM 
+	(
+	SELECT A.customer_id, -- Sub-query: Select the top 5 paying customers
+       		A.first_name,
+       		A.last_name,
+       		D.country,
+       		C.city,
+       		SUM(E.amount) AS total_amount_paid
+	FROM customer A
+	INNER JOIN payment E ON A.customer_id = E.customer_id
+	INNER JOIN address B ON A.address_id = B.address_id
+	INNER JOIN city C ON B.city_id = C.city_id
+	INNER JOIN country D ON C.country_id = D.country_id
+--Selected the top 10 cities
+	WHERE (C.city, D.country) IN 
+		(  
+    	SELECT C.city, D.country
+    	FROM customer A
+    	INNER JOIN address B ON A.address_id = B.address_id
+    	INNER JOIN city C ON B.city_id = C.city_id
+    	INNER JOIN country D ON C.country_id = D.country_id
+    	GROUP BY C.city, D.country
+    	ORDER BY COUNT(A.customer_id) DESC
+    	LIMIT 10
+		)
+	GROUP BY A.customer_id, A.first_name, A.last_name, D.country, C.city
+	ORDER BY total_amount_paid DESC
+	LIMIT 5
+	) AS total_amount_paid;
+
+-- Second part of the query
+
+-- Main query to calculate the counts the number of customers in each country and how many of these are the top customers
+SELECT D.country,
+       COUNT(DISTINCT F.customer_id) AS all_customers_count,
+       COUNT(DISTINCT top_customers.customer_id) AS top_customer_count
+FROM customer F
+INNER JOIN address B ON F.address_id = B.address_id
+INNER JOIN city C ON B.city_id = C.city_id
+INNER JOIN country D ON C.country_id = D.country_id
+LEFT JOIN (
+    SELECT A.customer_id,
+           D.country,
+           C.city,
+           SUM(E.amount) AS total_amount_paid
+    FROM customer A
+    INNER JOIN payment E ON A.customer_id = E.customer_id
+    INNER JOIN address B ON A.address_id = B.address_id
+    INNER JOIN city C ON B.city_id = C.city_id
+    INNER JOIN country D ON C.country_id = D.country_id
+    WHERE (C.city, D.country) IN (
+        SELECT C.city, D.country
+        FROM customer A
+        INNER JOIN address B ON A.address_id = B.address_id
+        INNER JOIN city C ON B.city_id = C.city_id
+        INNER JOIN country D ON C.country_id = D.country_id
+        GROUP BY C.city, D.country
+        ORDER BY COUNT(A.customer_id) DESC
+        LIMIT 10
+    )
+    GROUP BY A.customer_id, D.country, C.city
+    ORDER BY total_amount_paid DESC
+    LIMIT 5
+) AS top_customers ON F.customer_id = top_customers.customer_id
+GROUP BY D.country
+ORDER BY all_customers_count DESC;
